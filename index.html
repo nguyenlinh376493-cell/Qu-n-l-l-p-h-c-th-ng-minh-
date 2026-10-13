@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Quản Lý Lớp Học & Bảng Tin Thông Minh</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- FIREBASE SDK CHO ĐỒNG BỘ THỜI GIAN THỰC -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .desk-card { transition: all 0.2s ease; }
+        .desk-card:hover { transform: translateY(-2px); }
+        @keyframes pulseAlert {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+        .alert-vibrate { animation: pulseAlert 0.4s ease infinite; }
+    </style>
+</head>
+<body id="appBody" class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- HEADER & NAVBAR -->
+    <header class="bg-indigo-900 text-white shadow-lg sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-amber-500 text-indigo-950 p-2.5 rounded-xl font-black text-xl shadow">
+                    <i class="fa-solid fa-graduation-cap"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-base md:text-xl tracking-wide leading-tight">BẢNG TIN & SƠ ĐỒ LỚP HỌC</h1>
+                    <p class="text-xs text-indigo-200">Đồng bộ đám mây thời gian thực cho toàn lớp</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 md:gap-3">
+                <span id="roleBadge" class="bg-slate-700/80 text-slate-200 text-xs px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5 border border-slate-600">
+                    <i class="fa-solid fa-user-graduate text-amber-400"></i> Học sinh (Chỉ xem)
+                </span>
+                <button onclick="openLoginModal()" class="bg-amber-500 hover:bg-amber-400 text-indigo-950 font-bold text-xs md:text-sm px-3.5 py-2 rounded-lg transition flex items-center gap-2 shadow">
+                    <i class="fa-solid fa-key" id="authIcon"></i>
+                    <span id="authBtnText">Đăng Nhập</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- BANNER CẢNH BÁO RUNG -->
+    <div id="alertBanner" class="bg-rose-600 text-white text-center py-2 px-4 text-xs font-bold hidden flex items-center justify-center gap-2 shadow-inner">
+        <i class="fa-solid fa-bell fa-shake text-amber-300"></i> ⚠️ CẢNH BÁO: CÓ THÔNG BÁO HOẶC CẬP NHẬT MỚI TRONG LỚP HỌC!
+    </div>
+
+    <!-- MAIN CONTENT CONTAINER -->
+    <main class="max-w-7xl mx-auto px-4 py-6 w-full flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- CỘT TRÁI (8 COT) -->
+        <div class="lg:col-span-8 flex flex-col gap-6">
+
+            <!-- THÔNG BÁO QUAN TRỌNG -->
+            <section class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
+                <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+                    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-bullhorn text-indigo-600"></i> Thông Báo Lớp Học
+                    </h2>
+                    <button id="addNoticeBtn" onclick="openNoticeModal()" class="hidden bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition items-center gap-1.5">
+                        <i class="fa-solid fa-plus"></i> Đăng Thông Báo
+                    </button>
+                </div>
+
+                <div id="noticeContainer" class="space-y-4">
+                    <!-- Javascript Render -->
+                </div>
+            </section>
+
+            <!-- SƠ ĐỒ LỚP HỌC -->
+            <section class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
+                <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-sitemap text-emerald-600"></i> Sơ Đồ Chỗ Ngồi Lớp Học
+                        </h2>
+                        <p class="text-xs text-slate-500 mt-0.5">3 Tổ, mỗi tổ 6 bàn dọc, 3 vị trí/bàn (18 bàn tổng cộng)</p>
+                    </div>
+                    <span class="text-xs font-medium bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-md border border-emerald-200">
+                        Bàn Giáo Viên Phía Trên
+                    </span>
+                </div>
+
+                <div class="w-full bg-slate-800 text-white text-center py-2 rounded-xl mb-6 font-bold text-xs tracking-wider shadow-inner uppercase">
+                    👨‍🏫 Bục Giảng & Bàn Giáo Viên 👩‍🏫
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col gap-3">
+                        <div class="font-bold text-xs text-indigo-900 bg-indigo-100 px-2.5 py-1 rounded text-center border border-indigo-200">
+                            TỔ 1 (Bàn 1 - 6)
+                        </div>
+                        <div id="group1Container" class="flex flex-col gap-2.5"></div>
+                    </div>
+
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col gap-3">
+                        <div class="font-bold text-xs text-indigo-900 bg-indigo-100 px-2.5 py-1 rounded text-center border border-indigo-200">
+                            TỔ 2 (Bàn 7 - 12)
+                        </div>
+                        <div id="group2Container" class="flex flex-col gap-2.5"></div>
+                    </div>
+
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col gap-3">
+                        <div class="font-bold text-xs text-indigo-900 bg-indigo-100 px-2.5 py-1 rounded text-center border border-indigo-200">
+                            TỔ 3 (Bàn 13 - 18)
+                        </div>
+                        <div id="group3Container" class="flex flex-col gap-2.5"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SỔ GHI LỖI KỶ LUẬT & THỐNG KÊ -->
+            <section id="violationSection" class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 hidden">
+                <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+                    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-clipboard-list text-rose-600"></i> Sổ Ghi Lỗi Nề Nếp & Thống Kê
+                    </h2>
+                    <button onclick="openDisciplineModal()" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition items-center gap-1.5">
+                        <i class="fa-solid fa-plus"></i> Ghi Lỗi Mới
+                    </button>
+                </div>
+
+                <div id="violationStatsCard" class="bg-rose-50 border border-rose-200 rounded-xl p-3.5 mb-4 flex items-center justify-between text-xs">
+                    <!-- JS Render Stats -->
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-slate-600">
+                        <thead class="bg-slate-50 text-slate-700 font-semibold text-xs uppercase border-b border-slate-200">
+                            <tr>
+                                <th class="p-3">Học Sinh</th>
+                                <th class="p-3">Nội Dung Vi Phạm</th>
+                                <th class="p-3">Thời Gian</th>
+                                <th class="p-3 text-right">Thao Tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="violationTable" class="divide-y divide-slate-100">
+                            <!-- JS Render -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+        </div>
+
+        <!-- CỘT PHẢI (4 COT): TRỢ LÝ AI -->
+        <div class="lg:col-span-4">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col h-[680px] sticky top-20">
+                
+                <div class="bg-gradient-to-r from-indigo-800 to-indigo-900 text-white p-4 rounded-t-2xl flex items-center justify-between shadow">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-8 h-8 rounded-lg bg-amber-400 text-indigo-950 flex items-center justify-center font-bold text-sm">
+                            <i class="fa-solid fa-robot"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-sm">Trợ Lý AI Lớp Học</h3>
+                            <p class="text-[11px] text-indigo-200">Chỉ trả lời đúng 3 việc chính</p>
+                        </div>
+                    </div>
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                </div>
+
+                <div id="aiChatBox" class="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-50/50 text-sm">
+                    <div class="bg-indigo-100/70 text-indigo-950 p-3 rounded-2xl rounded-tl-none border border-indigo-200/50">
+                        👋 Xin chào! Tôi là Trợ lý AI giới hạn của lớp. Tôi chỉ trả lời 3 câu hỏi:<br>
+                        1️⃣ <i>"Khi nào đóng quỹ?"</i><br>
+                        2️⃣ <i>"Ai vi phạm nhiều nhất?"</i><br>
+                        3️⃣ <i>"Sơ đồ lớp như thế nào?"</i>
+                    </div>
+                </div>
+
+                <div class="p-2 bg-slate-100 border-t border-slate-200 flex gap-1 overflow-x-auto text-[11px] font-medium text-slate-600">
+                    <button onclick="quickAsk('Khi nào đóng quỹ?')" class="px-2.5 py-1 bg-white hover:bg-slate-200 rounded-md whitespace-nowrap border border-slate-200 shadow-sm">
+                        📌 Khi nào đóng quỹ?
+                    </button>
+                    <button onclick="quickAsk('Ai vi phạm nhiều nhất?')" class="px-2.5 py-1 bg-white hover:bg-slate-200 rounded-md whitespace-nowrap border border-slate-200 shadow-sm">
+                        ⚠️ Ai vi phạm nhiều nhất?
+                    </button>
+                    <button onclick="quickAsk('Sơ đồ lớp như thế nào?')" class="px-2.5 py-1 bg-white hover:bg-slate-200 rounded-md whitespace-nowrap border border-slate-200 shadow-sm">
+                        🪑 Sơ đồ lớp?
+                    </button>
+                </div>
+
+                <div class="p-3 border-t border-slate-200 bg-white rounded-b-2xl flex gap-2">
+                    <input type="text" id="aiInput" placeholder="Nhập câu hỏi..." onkeypress="if(event.key==='Enter') sendAiMessage()" class="flex-1 bg-slate-100 text-slate-800 text-sm px-3.5 py-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-slate-200">
+                    <button onclick="sendAiMessage()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition flex items-center justify-center">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </div>
+
+            </div>
+        </div>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="bg-slate-900 text-slate-400 text-center text-xs py-4 border-t border-slate-800">
+        <p>© 2026 Hệ Thống Quản Lý Lớp Học & Bảng Tin Thông Minh - Đồng bộ đám mây thời gian thực</p>
+    </footer>
+
+    <!-- MODAL ĐĂNG NHẬP -->
+    <div id="loginModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl border border-slate-100">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-key text-indigo-600"></i> Đăng Nhập Quản Trị / Cán Sự
+                </h3>
+                <button onclick="closeModal('loginModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <p class="text-xs text-slate-500 mb-4">Vui lòng nhập mật khẩu tương ứng với tài khoản của bạn.</p>
+            
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Mật khẩu truy cập</label>
+                <div class="relative">
+                    <input type="password" id="passwordInput" placeholder="Nhập mật khẩu..." class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl px-3.5 py-2.5 pr-10 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <button type="button" onclick="togglePasswordVisibility()" class="absolute right-3 top-3 text-slate-400 hover:text-indigo-600">
+                        <i class="fa-solid fa-eye" id="eyeIcon"></i>
+                    </button>
+                </div>
+                <p id="loginError" class="text-xs text-rose-600 mt-1.5 hidden font-medium"></p>
+            </div>
+
+            <div class="flex justify-end gap-2">
+                <button onclick="closeModal('loginModal')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition">Hủy</button>
+                <button onclick="verifyLogin()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl transition shadow">Xác Nhận</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL SƠ ĐỒ BÀN HỌC -->
+    <div id="deskModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
+                <div>
+                    <h3 id="deskModalTitle" class="text-base font-bold text-slate-800">Chỉnh Sửa Bàn Học</h3>
+                    <p class="text-xs text-slate-500">Cập nhật tên học sinh 3 vị trí ngồi</p>
+                </div>
+                <button onclick="closeModal('deskModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <input type="hidden" id="editingDeskId">
+
+            <div class="space-y-3 mb-5">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Vị Trí 1 (Trái)</label>
+                    <input type="text" id="seat1Input" placeholder="Tên học sinh..." class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Vị Trí 2 (Giữa)</label>
+                    <input type="text" id="seat2Input" placeholder="Tên học sinh..." class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Vị Trí 3 (Phải)</label>
+                    <input type="text" id="seat3Input" placeholder="Tên học sinh..." class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2">
+                <button onclick="closeModal('deskModal')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition">Hủy</button>
+                <button onclick="saveDeskChanges()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl transition shadow">Cập Nhật Sơ Đồ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL THÔNG BÁO -->
+    <div id="noticeModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl border border-slate-100">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="noticeModalTitle" class="text-base font-bold text-slate-800">Tạo Thông Báo Mới</h3>
+                <button onclick="closeModal('noticeModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <input type="hidden" id="noticeIdInput">
+
+            <div class="space-y-3 mb-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Loại Thông Báo</label>
+                    <select id="noticeTypeInput" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="urgent">🔴 Khẩn Cấp</option>
+                        <option value="study">📘 Học Tập</option>
+                        <option value="general">🟢 Thông Báo Chung</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Tiêu Đề Thông Báo</label>
+                    <input type="text" id="noticeTitleInput" placeholder="Nhập tiêu đề..." class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Hạn Nộp / Thời Hạn (Tự nhập)</label>
+                    <input type="text" id="noticeDeadlineInput" placeholder="Ví dụ: 20/10/2026 hoặc Trước 17h..." class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Nội Dung Chi Tiết</label>
+                    <textarea id="noticeContentInput" rows="3" placeholder="Nhập nội dung thông báo..." class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"></textarea>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2">
+                <button onclick="closeModal('noticeModal')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition">Hủy</button>
+                <button onclick="saveNotice()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl transition shadow">Lưu Thông Báo</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL SỔ KỶ LUẬT -->
+    <div id="disciplineModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl border border-slate-100">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="disciplineModalTitle" class="text-base font-bold text-slate-800">Ghi Lỗi Vi Phạm Nề Nếp</h3>
+                <button onclick="closeModal('disciplineModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <input type="hidden" id="editingViolationId">
+
+            <div class="space-y-3 mb-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Họ Tên Học Sinh (Khớp chính xác trong sơ đồ)</label>
+                    <input type="text" id="studentNameInput" placeholder="Nhập chính xác tên học sinh..." class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <p class="text-[11px] text-amber-600 mt-1">⚠️ Tên phải khớp từng chữ với học sinh có trên sơ đồ lớp.</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Nội Dung Vi Phạm</label>
+                    <input type="text" id="violationDetailInput" placeholder="Ví dụ: Đi học muộn 15 phút, ăn vặt..." class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2">
+                <button onclick="closeModal('disciplineModal')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition">Hủy</button>
+                <button onclick="saveViolation()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-xl transition shadow">Lưu Lỗi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC VỚI FIREBASE REALTIME DATABASE -->
+    <script>
+        // --- CẤU HÌNH FIREBASE ĐÚNG CỦA BẠN ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyDLP_inPFA1cjPOtQsM41yVrXwHZ4TP8CE",
+            authDomain: "quanlilophocthongminh.firebaseapp.com",
+            databaseURL: "https://quanlilophocthongminh-default-rtdb.firebaseio.com",
+            projectId: "quanlilophocthongminh",
+            storageBucket: "quanlilophocthongminh.appspot.com",
+            messagingSenderId: "1009974068886",
+            appId: "1:1009974068886:web:0bdbac80d066a9df85a4b7"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const PASS_TEACHER = "PCT2026@";
+        const PASS_MONITOR = atob("TE9QVFJVT05HQDEyMw=="); // LOPTRUONG@123
+        const PASS_VICE_MONITOR = atob("TE9QUEhPQDEyMw=="); // LOPPHO@123
+
+        let currentRole = 'student';
+
+        let notices = [];
+        let violations = [];
+        let desks = generateDefaultDesks();
+
+        function generateDefaultDesks() {
+            let list = [];
+            for(let i = 1; i <= 18; i++) {
+                let group = i <= 6 ? 1 : (i <= 12 ? 2 : 3);
+                list.push({
+                    id: i,
+                    group: group,
+                    seat1: `Học sinh ${i}A`,
+                    seat2: `Học sinh ${i}B`,
+                    seat3: `Học sinh ${i}C`
+                });
+            }
+            return list;
+        }
+
+        window.onload = function() {
+            initFirebaseListener();
+            updateUIRole();
+            triggerDeviceAlert();
+        };
+
+        function initFirebaseListener() {
+            db.ref('classroom_data').on('value', (snapshot) => {
+                let data = snapshot.val();
+                if(data) {
+                    notices = data.notices || [];
+                    violations = data.violations || [];
+                    desks = data.desks || generateDefaultDesks();
+                } else {
+                    notices = [
+                        { id: 1, author: 'teacher', authorTitle: 'Giáo Viên Chủ Nhiệm', type: 'urgent', title: 'Nộp Tiền Quỹ Lớp Học Kỳ I', deadline: '20/10/2026', content: 'Yêu cầu tất cả học sinh hoàn thành nộp quỹ lớp 300.000đ cho lớp trưởng.', date: '13/10/2026 - 08:30' },
+                        { id: 2, author: 'monitor', authorTitle: 'Lớp Trưởng', type: 'study', title: 'Lịch Ôn Tập Giữa Kỳ', deadline: '25/10/2026', content: 'Nhắc các bạn mang đầy đủ vở bài tập môn Toán và Văn vào ngày mai.', date: '12/10/2026 - 14:15' }
+                    ];
+                    violations = [
+                        { id: 1, name: 'Học sinh 1A', content: 'Ăn vặt trong giờ học', date: '12/10/2026' }
+                    ];
+                    desks = generateDefaultDesks();
+                    pushDataToCloud();
+                }
+                renderNotices();
+                renderDesks();
+                renderViolations();
+            });
+        }
+
+        function pushDataToCloud() {
+            db.ref('classroom_data').set({
+                notices: notices,
+                violations: violations,
+                desks: desks
+            });
+        }
+
+        function triggerDeviceAlert() {
+            if (navigator.vibrate) {
+                try { navigator.vibrate([400, 200, 400, 200]); } catch(e) {}
+            }
+            let banner = document.getElementById('alertBanner');
+            banner.classList.remove('hidden');
+            banner.classList.add('alert-vibrate');
+            setTimeout(() => {
+                banner.classList.remove('alert-vibrate');
+                banner.classList.add('hidden');
+            }, 2000);
+        }
+
+        function openLoginModal() {
+            if(currentRole !== 'student') {
+                currentRole = 'student';
+                updateUIRole();
+                alert("Đã đăng xuất tài khoản quản trị/cán sự!");
+            } else {
+                document.getElementById('passwordInput').value = '';
+                document.getElementById('loginError').classList.add('hidden');
+                document.getElementById('loginModal').classList.remove('hidden');
+            }
+        }
+
+        function verifyLogin() {
+            let pwd = document.getElementById('passwordInput').value;
+            if(pwd === PASS_TEACHER) {
+                currentRole = 'teacher';
+                closeModal('loginModal');
+                updateUIRole();
+                alert("Đăng nhập Giáo Viên thành công!");
+            } else if(pwd === PASS_MONITOR) {
+                currentRole = 'monitor';
+                closeModal('loginModal');
+                updateUIRole();
+                alert("Đăng nhập Lớp Trưởng thành công!");
+            } else if(pwd === PASS_VICE_MONITOR) {
+                currentRole = 'vice_monitor';
+                closeModal('loginModal');
+                updateUIRole();
+                alert("Đăng nhập Lớp Phó thành công!");
+            } else {
+                let err = document.getElementById('loginError');
+                err.innerText = "Mật khẩu không chính xác! Vui lòng thử lại.";
+                err.classList.remove('hidden');
+            }
+        }
+
+        function togglePasswordVisibility() {
+            let input = document.getElementById('passwordInput');
+            let icon = document.getElementById('eyeIcon');
+            if(input.type === "password") {
+                input.type = "text";
+                icon.className = "fa-solid fa-eye-slash";
+            } else {
+                input.type = "password";
+                icon.className = "fa-solid fa-eye";
+            }
+        }
+
+        function updateUIRole() {
+            let badge = document.getElementById('roleBadge');
+            let authBtnText = document.getElementById('authBtnText');
+            let authIcon = document.getElementById('authIcon');
+            let violationSec = document.getElementById('violationSection');
+            let addNoticeBtn = document.getElementById('addNoticeBtn');
+
+            if(currentRole === 'teacher') {
+                badge.innerHTML = `<i class="fa-solid fa-user-check text-emerald-400"></i> Giáo Viên (Admin)`;
+                authBtnText.innerText = "Đăng Xuất";
+                authIcon.className = "fa-solid fa-right-from-bracket";
+                violationSec.classList.remove('hidden');
+                addNoticeBtn.classList.remove('hidden');
+            } else if(currentRole === 'monitor') {
+                badge.innerHTML = `<i class="fa-solid fa-user-tie text-amber-300"></i> Lớp Trưởng`;
+                authBtnText.innerText = "Đăng Xuất";
+                authIcon.className = "fa-solid fa-right-from-bracket";
+                violationSec.classList.remove('hidden');
+                addNoticeBtn.classList.remove('hidden');
+            } else if(currentRole === 'vice_monitor') {
+                badge.innerHTML = `<i class="fa-solid fa-user-tie text-amber-300"></i> Lớp Phó`;
+                authBtnText.innerText = "Đăng Xuất";
+                authIcon.className = "fa-solid fa-right-from-bracket";
+                violationSec.classList.remove('hidden');
+                addNoticeBtn.classList.remove('hidden');
+            } else {
+                badge.innerHTML = `<i class="fa-solid fa-user-graduate text-amber-400"></i> Học sinh (Chỉ xem)`;
+                authBtnText.innerText = "Đăng Nhập";
+                authIcon.className = "fa-solid fa-key";
+                violationSec.classList.add('hidden');
+                addNoticeBtn.classList.add('hidden');
+            }
+
+            renderNotices();
+            renderDesks();
+            renderViolations();
+        }
+
+        function isValidStudentName(name) {
+            let clean = name.trim();
+            for(let d of desks) {
+                if(d.seat1.trim() === clean || d.seat2.trim() === clean || d.seat3.trim() === clean) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function renderNotices() {
+            let container = document.getElementById('noticeContainer');
+            container.innerHTML = '';
+
+            if(notices.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-400 italic text-center py-4">Chưa có thông báo nào được đăng.</p>`;
+                return;
+            }
+
+            notices.forEach(n => {
+                let badgeClass = n.type === 'urgent' ? 'bg-rose-100 text-rose-700 border-rose-200' : 
+                                (n.type === 'study' ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 'bg-emerald-100 text-emerald-700 border-emerald-200');
+                let badgeText = n.type === 'urgent' ? '🔴 Khẩn Cấp' : (n.type === 'study' ? '📘 Học Tập' : '🟢 Thông Báo Chung');
+
+                let canEdit = (currentRole === 'teacher') || (currentRole === 'monitor' && n.author !== 'teacher') || (currentRole === 'vice_monitor' && n.author !== 'teacher');
+
+                let toolsHtml = (currentRole !== 'student' && canEdit) ? `
+                    <div class="flex gap-1">
+                        <button onclick="editNotice(${n.id})" class="text-xs text-indigo-600 hover:text-indigo-800 p-1"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="deleteNotice(${n.id})" class="text-xs text-rose-600 hover:text-rose-800 p-1"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                ` : '';
+
+                let deadlineHtml = n.deadline ? `<span class="bg-amber-50 text-amber-800 border border-amber-200 text-[11px] px-2.5 py-0.5 rounded-full font-semibold"><i class="fa-regular fa-calendar-days"></i> Hạn nộp: ${n.deadline}</span>` : '';
+
+                let isTeacherNotice = (n.author === 'teacher');
+                let cardStyle = isTeacherNotice 
+                    ? 'bg-amber-50/80 border-2 border-amber-500 shadow-md ring-1 ring-amber-300' 
+                    : 'bg-slate-50 border border-slate-200 shadow-sm';
+                
+                let authorBadge = isTeacherNotice
+                    ? `<span class="bg-amber-600 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider shadow-sm"><i class="fa-solid fa-star"></i> Giáo Viên Chủ Nhiệm</span>`
+                    : `<span class="bg-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">${n.authorTitle || 'Cán Sự Lớp'}</span>`;
+
+                container.innerHTML += `
+                    <div class="${cardStyle} rounded-xl p-4 transition">
+                        <div class="flex justify-between items-start gap-2 mb-2 flex-wrap">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                ${authorBadge}
+                                <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${badgeClass}">
+                                    ${badgeText}
+                                </span>
+                                ${deadlineHtml}
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[11px] text-slate-500 font-medium"><i class="fa-regular fa-clock"></i> ${n.date}</span>
+                                ${toolsHtml}
+                            </div>
+                        </div>
+                        <h3 class="font-bold text-slate-900 text-sm md:text-base mb-1 ${isTeacherNotice ? 'text-indigo-950 font-black text-base' : ''}">${n.title}</h3>
+                        <p class="text-xs md:text-sm text-slate-700 leading-relaxed ${isTeacherNotice ? 'font-medium' : ''}">${n.content}</p>
+                    </div>
+                `;
+            });
+        }
+
+        function renderDesks() {
+            let g1 = document.getElementById('group1Container');
+            let g2 = document.getElementById('group2Container');
+            let g3 = document.getElementById('group3Container');
+
+            g1.innerHTML = ''; g2.innerHTML = ''; g3.innerHTML = '';
+
+            desks.forEach(d => {
+                let editIcon = (currentRole !== 'student') ? `<i class="fa-solid fa-pen-to-square text-[10px] text-indigo-600"></i>` : '';
+                let deskHtml = `
+                    <div onclick="openDeskModal(${d.id})" class="desk-card bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm cursor-pointer hover:border-indigo-400">
+                        <div class="flex justify-between items-center mb-1 pb-1 border-b border-slate-100">
+                            <span class="font-bold text-[11px] text-indigo-900">Bàn ${d.id}</span>
+                            ${editIcon}
+                        </div>
+                        <div class="grid grid-cols-3 gap-1 text-center text-[10px]">
+                            <div class="bg-slate-100 p-1 rounded font-medium text-slate-700 truncate" title="${d.seat1}">${d.seat1}</div>
+                            <div class="bg-slate-100 p-1 rounded font-medium text-slate-700 truncate" title="${d.seat2}">${d.seat2}</div>
+                            <div class="bg-slate-100 p-1 rounded font-medium text-slate-700 truncate" title="${d.seat3}">${d.seat3}</div>
+                        </div>
+                    </div>
+                `;
+
+                if(d.group === 1) g1.innerHTML += deskHtml;
+                else if(d.group === 2) g2.innerHTML += deskHtml;
+                else g3.innerHTML += deskHtml;
+            });
+        }
+
+        function renderViolations() {
+            let table = document.getElementById('violationTable');
+            let statsCard = document.getElementById('violationStatsCard');
+            table.innerHTML = '';
+
+            if(violations.length > 0) {
+                let countMap = {};
+                violations.forEach(v => {
+                    let name = v.name.trim();
+                    countMap[name] = (countMap[name] || 0) + 1;
+                });
+
+                let topStudent = Object.keys(countMap).reduce((a, b) => countMap[a] > countMap[b] ? a : b);
+                let topCount = countMap[topStudent];
+
+                statsCard.innerHTML = `
+                    <div class="flex items-center gap-2 text-rose-800 font-bold">
+                        <i class="fa-solid fa-chart-pie text-base"></i>
+                        <span>Thống kê nề nếp:</span>
+                    </div>
+                    <div class="text-slate-700">
+                        Học sinh vi phạm nhiều nhất: <span class="font-bold text-rose-600 underline">${topStudent}</span> (${topCount} lần)
+                    </div>
+                `;
+                statsCard.classList.remove('hidden');
+            } else {
+                statsCard.innerHTML = `<span class="text-slate-400 italic">Chưa có thống kê vi phạm.</span>`;
+            }
+
+            if(violations.length === 0) {
+                table.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-xs text-slate-400 italic">Không có ghi nhận vi phạm kỷ luật.</td></tr>`;
+                return;
+            }
+
+            violations.forEach(v => {
+                let actionButtons = (currentRole !== 'student') ? `
+                    <div class="flex justify-end gap-1.5">
+                        <button onclick="editViolation(${v.id})" class="text-xs text-indigo-600 hover:text-indigo-800 p-1 bg-indigo-50 rounded" title="Tinh chỉnh lỗi"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="deleteViolation(${v.id})" class="text-xs text-rose-600 hover:text-rose-800 p-1 bg-rose-50 rounded" title="Xóa lỗi"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                ` : `<span class="text-slate-400 text-xs italic">Chỉ xem</span>`;
+
+                table.innerHTML += `
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="p-3 font-semibold text-slate-800">${v.name}</td>
+                        <td class="p-3 text-rose-600 font-medium">${v.content}</td>
+                        <td class="p-3 text-xs text-slate-400">${v.date}</td>
+                        <td class="p-3 text-right">${actionButtons}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function openDeskModal(deskId) {
+            if(currentRole === 'student') {
+                alert("Học sinh chỉ có quyền xem sơ đồ lớp. Cán sự lớp hoặc Giáo viên mới có quyền chỉnh sửa!");
+                return;
+            }
+            let desk = desks.find(d => d.id === deskId);
+            if(!desk) return;
+
+            document.getElementById('editingDeskId').value = desk.id;
+            document.getElementById('deskModalTitle').innerText = `Chỉnh Sửa Bàn ${desk.id} (Tổ ${desk.group})`;
+            document.getElementById('seat1Input').value = desk.seat1;
+            document.getElementById('seat2Input').value = desk.seat2;
+            document.getElementById('seat3Input').value = desk.seat3;
+
+            document.getElementById('deskModal').classList.remove('hidden');
+        }
+
+        function saveDeskChanges() {
+            let id = parseInt(document.getElementById('editingDeskId').value);
+            let desk = desks.find(d => d.id === id);
+            if(desk) {
+                desk.seat1 = document.getElementById('seat1Input').value.trim() || 'Trống';
+                desk.seat2 = document.getElementById('seat2Input').value.trim() || 'Trống';
+                desk.seat3 = document.getElementById('seat3Input').value.trim() || 'Trống';
+
+                pushDataToCloud();
+                closeModal('deskModal');
+            }
+        }
+
+        function openNoticeModal() {
+            if(currentRole === 'student') return;
+            document.getElementById('noticeIdInput').value = '';
+            document.getElementById('noticeModalTitle').innerText = "Tạo Thông Báo Mới";
+            document.getElementById('noticeTitleInput').value = '';
+            document.getElementById('noticeDeadlineInput').value = '';
+            document.getElementById('noticeContentInput').value = '';
+            document.getElementById('noticeModal').classList.remove('hidden');
+        }
+
+        function editNotice(id) {
+            let n = notices.find(x => x.id === id);
+            if(!n) return;
+
+            document.getElementById('noticeIdInput').value = n.id;
+            document.getElementById('noticeModalTitle').innerText = "Tinh Chỉnh Thông Báo";
+            document.getElementById('noticeTypeInput').value = n.type;
+            document.getElementById('noticeTitleInput').value = n.title;
+            document.getElementById('noticeDeadlineInput').value = n.deadline || '';
+            document.getElementById('noticeContentInput').value = n.content;
+            document.getElementById('noticeModal').classList.remove('hidden');
+        }
+
+        function saveNotice() {
+            let id = document.getElementById('noticeIdInput').value;
+            let type = document.getElementById('noticeTypeInput').value;
+            let title = document.getElementById('noticeTitleInput').value.trim();
+            let deadline = document.getElementById('noticeDeadlineInput').value.trim();
+            let content = document.getElementById('noticeContentInput').value.trim();
+
+            if(!title || !content) {
+                alert("Vui lòng điền tiêu đề và nội dung thông báo!");
+                return;
+            }
+
+            let now = new Date();
+            let dateStr = `${now.toLocaleDateString('vi-VN')} - ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+            let authorKey = (currentRole === 'teacher') ? 'teacher' : (currentRole === 'monitor' ? 'monitor' : 'vice_monitor');
+            let authorTitleStr = (currentRole === 'teacher') ? 'Giáo Viên Chủ Nhiệm' : (currentRole === 'monitor' ? 'Lớp Trưởng' : 'Lớp Phó');
+
+            if(id) {
+                let n = notices.find(x => x.id == id);
+                if(n) {
+                    n.type = type;
+                    n.title = title;
+                    n.deadline = deadline;
+                    n.content = content;
+                }
+            } else {
+                notices.unshift({
+                    id: Date.now(),
+                    author: authorKey,
+                    authorTitle: authorTitleStr,
+                    type: type,
+                    title: title,
+                    deadline: deadline,
+                    content: content,
+                    date: dateStr
+                });
+            }
+
+            pushDataToCloud();
+            closeModal('noticeModal');
+        }
+
+        function deleteNotice(id) {
+            if(confirm("Bạn có chắc chắn muốn xóa thông báo này?")) {
+                notices = notices.filter(x => x.id !== id);
+                pushDataToCloud();
+            }
+        }
+
+        function openDisciplineModal() {
+            if(currentRole === 'student') {
+                alert("Bạn không có quyền truy cập sổ ghi lỗi!");
+                return;
+            }
+            document.getElementById('editingViolationId').value = '';
+            document.getElementById('disciplineModalTitle').innerText = "Ghi Lỗi Vi Phạm Nề Nếp";
+            document.getElementById('studentNameInput').value = '';
+            document.getElementById('violationDetailInput').value = '';
+            document.getElementById('disciplineModal').classList.remove('hidden');
+        }
+
+        function editViolation(id) {
+            if(currentRole === 'student') return;
+            let v = violations.find(x => x.id === id);
+            if(!v) return;
+
+            document.getElementById('editingViolationId').value = v.id;
+            document.getElementById('disciplineModalTitle').innerText = "Tinh Chỉnh Lỗi Vi Phạm";
+            document.getElementById('studentNameInput').value = v.name;
+            document.getElementById('violationDetailInput').value = v.content;
+            document.getElementById('disciplineModal').classList.remove('hidden');
+        }
+
+        function saveViolation() {
+            let id = document.getElementById('editingViolationId').value;
+            let name = document.getElementById('studentNameInput').value.trim();
+            let detail = document.getElementById('violationDetailInput').value.trim();
+
+            if(!name || !detail) {
+                alert("Vui lòng nhập đầy đủ tên học sinh và lỗi vi phạm!");
+                return;
+            }
+
+            if(!isValidStudentName(name)) {
+                alert(`Lỗi: Tên "${name}" không tồn tại hoặc không khớp chính xác với bất kỳ học sinh nào trong sơ đồ lớp học!`);
+                return;
+            }
+
+            if(id) {
+                let v = violations.find(x => x.id == id);
+                if(v) {
+                    v.name = name;
+                    v.content = detail;
+                }
+            } else {
+                violations.unshift({
+                    id: Date.now(),
+                    name: name,
+                    content: detail,
+                    date: new Date().toLocaleDateString('vi-VN')
+                });
+            }
+
+            pushDataToCloud();
+            closeModal('disciplineModal');
+            alert("Đã lưu bản ghi lỗi thành công!");
+        }
+
+        function deleteViolation(id) {
+            if(currentRole === 'student') {
+                alert("Bạn không có quyền xóa lỗi!");
+                return;
+            }
+            if(confirm("Bạn có chắc chắn muốn xóa bản ghi lỗi vi phạm này khỏi hệ thống?")) {
+                violations = violations.filter(v => v.id !== id);
+                pushDataToCloud();
+            }
+        }
+
+        function quickAsk(question) {
+            document.getElementById('aiInput').value = question;
+            sendAiMessage();
+        }
+
+        function sendAiMessage() {
+            let input = document.getElementById('aiInput');
+            let query = input.value.trim();
+            if(!query) return;
+
+            let chatBox = document.getElementById('aiChatBox');
+
+            chatBox.innerHTML += `
+                <div class="bg-indigo-600 text-white p-3 rounded-2xl rounded-tr-none ml-auto max-w-[85%] text-xs shadow-sm">
+                    ${query}
+                </div>
+            `;
+
+            input.value = '';
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            setTimeout(() => {
+                let reply = generateAiReply(query);
+                chatBox.innerHTML += `
+                    <div class="bg-indigo-100/70 text-indigo-950 p-3 rounded-2xl rounded-tl-none border border-indigo-200/50 max-w-[88%] text-xs leading-relaxed">
+                        🤖 ${reply}
+                    </div>
+                `;
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }, 400);
+        }
+
+        function generateAiReply(q) {
+            let lower = q.toLowerCase();
+
+            if(lower.includes('đóng quỹ') || lower.includes('khi nào đóng quỹ') || lower.includes('quỹ lớp')) {
+                let n = notices.find(x => x.title.toLowerCase().includes('quỹ') || x.content.toLowerCase().includes('quỹ'));
+                return n ? `Thông tin đóng quỹ: "${n.title}" (Hạn nộp: ${n.deadline || 'Chưa cập nhật'}) - ${n.content}` : "Hạn đóng quỹ lớp là trước ngày 20/10/2026 theo thông báo khẩn cấp.";
+            }
+
+            if(lower.includes('vi phạm') || lower.includes('nhiều nhất') || lower.includes('ai vi phạm')) {
+                if(violations.length === 0) return "Sổ kỷ luật hiện chưa ghi nhận trường hợp vi phạm nào.";
+                let countMap = {};
+                violations.forEach(v => {
+                    let name = v.name.trim();
+                    countMap[name] = (countMap[name] || 0) + 1;
+                });
+                let topStudent = Object.keys(countMap).reduce((a, b) => countMap[a] > countMap[b] ? a : b);
+                return `Học sinh vi phạm nhiều nhất trong sổ kỷ luật hiện tại là: **${topStudent}** với tổng số **${countMap[topStudent]} lần** vi phạm.`;
+            }
+
+            if(lower.includes('sơ đồ') || lower.includes('chỗ ngồi') || lower.includes('bàn')) {
+                return "Sơ đồ lớp học bao gồm 3 Tổ, mỗi tổ có 6 bàn dọc, mỗi bàn có 3 vị trí ngồi (tổng cộng 18 bàn). Bạn có thể xem chi tiết trực tiếp trên màn hình sơ đồ lớp.";
+            }
+
+            return "Xin lỗi, tôi chỉ là trợ lý giới hạn của lớp và chỉ được phép trả lời 3 câu hỏi: (1) Khi nào đóng quỹ, (2) Ai vi phạm nhiều nhất, và (3) Sơ đồ lớp như thế nào. Vui lòng hỏi lại một trong ba chủ đề trên nhé!";
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
